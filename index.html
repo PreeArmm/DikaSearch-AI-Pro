@@ -248,7 +248,7 @@
   // แจ้งสถานะว่าเป็นระบบค้นหาที่เชื่อมต่อดัชนีจริงแล้ว
   notice.textContent =
     "สถานะ: เชื่อมต่อดัชนีค้นหาแล้ว " +
-    "ตัวกรองแหล่งข้อมูลและปียังไม่รองรับ";
+    "ตัวกรองแหล่งข้อมูลและปีพร้อมใช้งาน";
 
   function showMessage(message) {
     result.style.display = "block";
@@ -280,9 +280,11 @@
     // API รุ่นปัจจุบันรองรับ q และ limit เท่านั้น
     // ยังไม่นำ source/year ไปแสดงเป็นตัวกรองที่ใช้งานได้จริง
     const params = new URLSearchParams({
-      q: query,
-      limit: "5"
-    });
+  q: query,
+  limit: "5",
+  source: sourceSelect.value,
+  year: yearSelect.value
+});
 
     result.style.display = "block";
     result.replaceChildren();
@@ -292,10 +294,9 @@
 
     try {
       const response = await fetch(
-        API_BASE + "/search?" + params.toString(),
-        { method: "GET" }
-      );
-
+  API_BASE + "/search-filtered?" + params.toString(),
+  { method: "GET" }
+);
       let data;
       try {
         data = await response.json();
