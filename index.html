@@ -420,10 +420,77 @@
         const excerpt = document.createElement("p");
         excerpt.style.cssText =
           "white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);";
-        excerpt.textContent = item.text_excerpt || "ไม่มีข้อความตัวอย่าง";
-        article.appendChild(excerpt);
+        
+excerpt.textContent = item.text_excerpt || "ไม่มีข้อความตัวอย่าง";
+article.appendChild(excerpt);
 
-        result.appendChild(article);
+// ปุ่มโหลดเนื้อหาเอกสารฉบับเต็มเมื่อผู้ใช้ต้องการ
+const readButton = document.createElement("button");
+readButton.type = "button";
+readButton.textContent = "อ่านเอกสารฉบับเต็ม";
+
+readButton.addEventListener("click", async () => {
+  if (readButton.disabled) return;
+
+  readButton.disabled = true;
+  readButton.textContent = "กำลังโหลดเอกสาร...";
+
+  try {
+    const response = await fetch(
+      API_BASE + "/document/" +
+      encodeURIComponent(item.document_id)
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail || "HTTP " + response.status
+      );
+    }
+
+    const details = document.createElement("details");
+    details.open = true;
+    details.style.cssText =
+      "margin-top:12px;padding:12px;" +
+      "border:1px solid var(--line);border-radius:8px;";
+
+    const summary = document.createElement("summary");
+    summary.textContent =
+      "เอกสารฉบับเต็ม (" +
+      Number(data.text_length).toLocaleString("th-TH") +
+      " ตัวอักษร)";
+    summary.style.cursor = "pointer";
+
+    const fullText = document.createElement("div");
+    fullText.textContent = data.text;
+    fullText.style.cssText =
+      "margin-top:12px;white-space:pre-wrap;" +
+      "overflow-wrap:anywhere;line-height:1.9;" +
+      "color:var(--text);";
+
+    details.append(summary, fullText);
+    article.appendChild(details);
+
+    readButton.textContent = "โหลดเอกสารแล้ว";
+    readButton.disabled = true;
+
+  } catch (error) {
+    readButton.disabled = false;
+    readButton.textContent = "ลองอ่านเอกสารอีกครั้ง";
+
+    showMessage(
+      "เปิดเอกสารไม่สำเร็จ: " + error.message +
+      " กรุณาตรวจสอบว่า API และ Tunnel ยังทำงานอยู่"
+    );
+  }
+});
+
+readButton.style.marginTop = "8px";
+article.appendChild(readButton);
+
+result.appendChild(article);
+
       }
 
       // ปุ่มเปลี่ยนหน้า
