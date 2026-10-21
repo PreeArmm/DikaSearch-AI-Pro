@@ -229,19 +229,154 @@
     </div>
   </footer>
 
-  <script>
-    document.getElementById("searchForm").addEventListener("submit", function(event) {
-      event.preventDefault();
-      const query = document.getElementById("query").value.trim();
-      const source = document.getElementById("source").value;
-      const year = document.getElementById("year").value;
-      const result = document.getElementById("result");
+  
+<script>
+(() => {
+  // URL นี้ใช้ทดสอบชั่วคราวเท่านั้น
+  // อย่า Commit URL ของ Tunnel ที่ไม่มีระบบยืนยันตัวตน
+  const API_BASE =
+    "https://bicycle-fans-harvey-added.trycloudflare.com";
 
-      result.style.display = "block";
-      result.textContent =
-        'ได้รับคำค้น "' + query + '" แล้ว แต่ยังไม่มีการค้นข้อมูลจริง เนื่องจากยังไม่ได้เชื่อมฐานข้อมูล' +
-        ' (ตัวกรองแหล่งข้อมูล: ' + source + ', ปี: ' + year + ').';
+  const form = document.getElementById("searchForm");
+  const queryInput = document.getElementById("query");
+  const sourceSelect = document.getElementById("source");
+  const yearSelect = document.getElementById("year");
+  const result = document.getElementById("result");
+  const notice = document.querySelector(".notice");
+  const submitButton = form.querySelector('button[type="submit"]');
+
+  // แจ้งสถานะว่าเป็นระบบค้นหาที่เชื่อมต่อดัชนีจริงแล้ว
+  notice.textContent =
+    "สถานะ: เชื่อมต่อดัชนีค้นหาแล้ว " +
+    "ตัวกรองแหล่งข้อมูลและปียังไม่รองรับ";
+
+  function showMessage(message) {
+    result.style.display = "block";
+    result.replaceChildren();
+    const paragraph = document.createElement("p");
+    paragraph.textContent = message;
+    result.appendChild(paragraph);
+  }
+
+  function addText(parent, label, value) {
+    const paragraph = document.createElement("p");
+    const strong = document.createElement("strong");
+    strong.textContent = label + ": ";
+    paragraph.append(strong, document.createTextNode(
+      value == null || value === "" ? "ไม่ระบุ" : String(value)
+    ));
+    parent.appendChild(paragraph);
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const query = queryInput.value.trim();
+    if (!query) {
+      showMessage("กรุณาพิมพ์คำค้นก่อนกดค้นหา");
+      return;
+    }
+
+    // API รุ่นปัจจุบันรองรับ q และ limit เท่านั้น
+    // ยังไม่นำ source/year ไปแสดงเป็นตัวกรองที่ใช้งานได้จริง
+    const params = new URLSearchParams({
+      q: query,
+      limit: "5"
     });
-  </script>
+
+    result.style.display = "block";
+    result.replaceChildren();
+    showMessage('กำลังค้นหา "' + query + '" ...');
+    submitButton.disabled = true;
+    submitButton.textContent = "กำลังค้นหา...";
+
+    try {
+      const response = await fetch(
+        API_BASE + "/search?" + params.toString(),
+        { method: "GET" }
+      );
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("API ส่งข้อมูลกลับมาในรูปแบบที่อ่านไม่ได้");
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "API ตอบกลับ HTTP " + response.status
+        );
+      }
+
+      result.replaceChildren();
+
+      const heading = document.createElement("h3");
+      heading.textContent =
+        'ผลการค้นหา "' + data.query + '" (' + data.count + " รายการ)";
+      result.appendChild(heading);
+
+      if (!data.results || data.results.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent =
+          "ไม่พบเอกสารที่ตรงกับคำค้นนี้ ลองใช้คำอื่นหรือคำที่สั้นลง";
+        result.appendChild(empty);
+        return;
+      }
+
+      data.results.forEach((item, index) => {
+        const article = document.createElement("article");
+        article.style.cssText =
+          "padding:14px 0;border-top:1px solid var(--line);";
+
+        const title = document.createElement("h4");
+        title.textContent =
+          "ผลลัพธ์ที่ " + (index + 1) +
+          (item.source_doc_id ? " — " + item.source_doc_id : "");
+        article.appendChild(title);
+
+        addText(article, "รหัสเอกสารในดัชนี", item.document_id);
+        addText(article, "รหัสต้นฉบับ", item.source_doc_id);
+        addText(article, "แหล่งข้อมูล", item.source);
+        addText(article, "ปี", item.year);
+
+        const excerpt = document.createElement("p");
+        excerpt.style.cssText =
+          "white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);";
+        excerpt.textContent = item.text_excerpt || "ไม่มีข้อความตัวอย่าง";
+        article.appendChild(excerpt);
+
+        result.appendChild(article);
+      });
+
+      const disclaimer = document.createElement("p");
+      disclaimer.style.cssText =
+        "margin-top:14px;font-size:12px;color:var(--muted);";
+      disclaimer.textContent =
+        "ผลลัพธ์มาจากชุดข้อมูลที่จัดทำไว้ ไม่ใช่การเชื่อมต่อฐานข้อมูล " +
+        "ศาลฎีกาแบบเรียลไทม์ โปรดตรวจสอบเอกสารต้นฉบับก่อนนำไปใช้อ้างอิง";
+      result.appendChild(disclaimer);
+
+    } catch (error) {
+      showMessage(
+        "ค้นหาไม่สำเร็จ: " + error.message +
+        " กรุณาตรวจสอบว่า API และ Tunnel ยังทำงานอยู่"
+      );
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "ค้นหา →";
+    }
+  });
+
+  // ป้องกันไม่ให้ตัวกรองที่ยังไม่รองรับทำให้ผู้ใช้เข้าใจผิด
+  sourceSelect.addEventListener("change", () => {
+    sourceSelect.title = "ตัวกรองนี้ยังไม่เชื่อมกับ API";
+  });
+
+  yearSelect.addEventListener("change", () => {
+    yearSelect.title = "ตัวกรองนี้ยังไม่เชื่อมกับ API";
+  });
+})();
+</script>
 </body>
 </html>
